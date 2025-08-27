@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux builds
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: prometheus-agents-setup-linux-amd64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: prometheus-agents-setup-linux-arm64
+            use_cross: true
+          
+          # Windows builds
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: prometheus-agents-setup-windows-amd64.exe
+            extension: .exe
+          
+          # macOS builds
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: prometheus-agents-setup-macos-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: prometheus-agents-setup-macos-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.use_cross == true
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (native)
+        if: matrix.use_cross != true
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+          
+      - name: Build (cross)
+        if: matrix.use_cross == true
+        run: |
+          cross build --release --target ${{ matrix.target }}
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/${{ matrix.target }}/release/prometheus-agents-setup.exe ${{ matrix.artifact_name }}
+          else
+            cp target/${{ matrix.target }}/release/prometheus-agents-setup ${{ matrix.artifact_name }}
+            chmod +x ${{ matrix.artifact_name }}
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "## What's Changed" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$PREV_TAG" ]; then
+            echo "Initial release" >> CHANGELOG.md
+          else
+            git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" >> CHANGELOG.md
+          fi
+          
+          echo "" >> CHANGELOG.md
+          echo "## Assets" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Supported Platforms" >> CHANGELOG.md
+          echo "- **Linux**: x86_64, aarch64" >> CHANGELOG.md
+          echo "- **Windows**: x86_64" >> CHANGELOG.md
+          echo "- **macOS**: x86_64 (Intel), aarch64 (Apple Silicon)" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Installation" >> CHANGELOG.md
+          echo '```bash' >> CHANGELOG.md
+          echo "# Linux/macOS" >> CHANGELOG.md
+          echo "chmod +x prometheus-agents-setup-*" >> CHANGELOG.md
+          echo "sudo ./prometheus-agents-setup-*" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "# Windows (Run as Administrator)" >> CHANGELOG.md
+          echo "prometheus-agents-setup-windows-amd64.exe" >> CHANGELOG.md
+          echo '```' >> CHANGELOG.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: |
+            artifacts/*/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create checksums
+        run: |
+          cd artifacts
+          find . -type f -name "prometheus-agents-setup-*" -exec sha256sum {} \; > ../checksums.txt
+          cd ..
+          
+      - name: Upload checksums
+        uses: softprops/action-gh-release@v1
+        with:
+          files: checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
