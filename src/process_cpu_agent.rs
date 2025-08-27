@@ -28,7 +28,7 @@ impl ProcessCpuAgentSetup {
         {
             self.setup_windows_service()?;
         }
-        
+
         #[cfg(not(windows))]
         {
             self.setup_linux_service()?;

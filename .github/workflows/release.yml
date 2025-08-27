@@ -102,7 +102,7 @@ jobs:
           echo "## Assets" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           echo "### Supported Platforms" >> CHANGELOG.md
-          echo "- **Linux**: x86_64, aarch64" >> CHANGELOG.md
+          echo "- **Linux**: x86_64" >> CHANGELOG.md
           echo "- **Windows**: x86_64" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           echo "### Installation" >> CHANGELOG.md
