@@ -11,11 +11,10 @@ pub struct ProcessCpuAgentSetup {
 impl ProcessCpuAgentSetup {
     pub fn new() -> Self {
         Self {
-            install_path: if cfg!(windows) {
-                "C:\\Program Files\\prometheus\\process-cpu-agent".to_string()
-            } else {
-                "/opt/prometheus/process-cpu-agent".to_string()
-            },
+            #[cfg(windows)]
+            install_path: "C:\\Program Files\\prometheus\\process-cpu-agent".to_string(),
+            #[cfg(not(windows))]
+            install_path: "/opt/prometheus/process-cpu-agent".to_string(),
         }
     }
 
@@ -25,9 +24,13 @@ impl ProcessCpuAgentSetup {
         self.create_directories()?;
         self.copy_binary()?;
 
-        if cfg!(windows) {
+        #[cfg(windows)]
+        {
             self.setup_windows_service()?;
-        } else {
+        }
+        
+        #[cfg(not(windows))]
+        {
             self.setup_linux_service()?;
         }
 
@@ -40,20 +43,18 @@ impl ProcessCpuAgentSetup {
     }
 
     fn copy_binary(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let target_binary = if cfg!(windows) {
-            format!("{}\\process-cpu-agent.exe", self.install_path)
-        } else {
-            format!("{}/process-cpu-agent", self.install_path)
-        };
+        #[cfg(windows)]
+        let target_binary = format!("{}\\process-cpu-agent.exe", self.install_path);
+        #[cfg(not(windows))]
+        let target_binary = format!("{}/process-cpu-agent", self.install_path);
 
         use std::io::Write;
         let mut file = fs::File::create(&target_binary)?;
 
-        if cfg!(windows) {
-            file.write_all(include_bytes!("../lib/process-cpu-agent.exe"))?;
-        } else {
-            file.write_all(include_bytes!("../lib/process-cpu-agent"))?;
-        }
+        #[cfg(windows)]
+        file.write_all(include_bytes!("../lib/process-cpu-agent.exe"))?;
+        #[cfg(not(windows))]
+        file.write_all(include_bytes!("../lib/process-cpu-agent"))?;
 
         #[cfg(unix)]
         {
@@ -69,6 +70,7 @@ impl ProcessCpuAgentSetup {
         Ok(())
     }
 
+    #[cfg(not(windows))]
     fn setup_linux_service(&self) -> Result<(), Box<dyn std::error::Error>> {
         let service_content = format!(
             r#"[Unit]
@@ -111,6 +113,7 @@ WantedBy=multi-user.target
         Ok(())
     }
 
+    #[cfg(windows)]
     fn setup_windows_service(&self) -> Result<(), Box<dyn std::error::Error>> {
         let binary_path = format!("{}\\process-cpu-agent.exe", self.install_path);
 
@@ -154,6 +157,7 @@ WantedBy=multi-user.target
         Ok(())
     }
 
+    #[cfg(not(windows))]
     fn create_startup_script(&self) -> Result<(), Box<dyn std::error::Error>> {
         let script_content = format!(
             r#"#!/bin/bash
@@ -213,11 +217,10 @@ metrics:
   enable_network: false
 "#;
 
-        let config_path = if cfg!(windows) {
-            format!("{}\\config.yml", self.install_path)
-        } else {
-            format!("{}/config.yml", self.install_path)
-        };
+        #[cfg(windows)]
+        let config_path = format!("{}\\config.yml", self.install_path);
+        #[cfg(not(windows))]
+        let config_path = format!("{}/config.yml", self.install_path);
 
         let mut file = fs::File::create(&config_path)?;
         use std::io::Write;
