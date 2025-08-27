@@ -100,9 +100,7 @@ WantedBy=multi-user.target
 
             println!("Systemd service created at: {service_path}");
 
-            Command::new("systemctl")
-                .args(["daemon-reload"])
-                .output()?;
+            Command::new("systemctl").args(["daemon-reload"]).output()?;
 
             println!("Run 'systemctl enable --now process-cpu-agent' to start the service");
         } else {

@@ -90,9 +90,7 @@ WantedBy=multi-user.target
             file.write_all(service_content.as_bytes())?;
             println!("Systemd service created at: {service_path}");
 
-            Command::new("systemctl")
-                .args(["daemon-reload"])
-                .output()?;
+            Command::new("systemctl").args(["daemon-reload"]).output()?;
 
             println!("Run 'systemctl enable --now node_exporter' to start the service");
         } else {

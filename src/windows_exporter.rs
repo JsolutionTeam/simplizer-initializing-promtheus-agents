@@ -55,9 +55,7 @@ impl WindowsExporterSetup {
         let mut file = fs::File::create(&installer_path)?;
         file.write_all(&bytes)?;
 
-        println!(
-            "Windows Exporter installer downloaded to: {installer_path}"
-        );
+        println!("Windows Exporter installer downloaded to: {installer_path}");
         Ok(())
     }
 
@@ -100,9 +98,7 @@ impl WindowsExporterSetup {
 
         if output.status.success() {
             println!("Windows Exporter service started successfully");
-            println!(
-                "Metrics available at: http://localhost:{WINDOWS_EXPORTER_PORT}/metrics"
-            );
+            println!("Metrics available at: http://localhost:{WINDOWS_EXPORTER_PORT}/metrics");
         } else {
             println!("Please start the service manually: sc start windows_exporter");
         }
