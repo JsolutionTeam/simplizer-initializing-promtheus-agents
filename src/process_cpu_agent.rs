@@ -65,7 +65,7 @@ impl ProcessCpuAgentSetup {
             fs::set_permissions(&target_binary, permissions)?;
         }
 
-        println!("Process CPU Agent binary extracted to: {}", target_binary);
+        println!("Process CPU Agent binary extracted to: {target_binary}");
 
         Ok(())
     }
@@ -98,10 +98,10 @@ WantedBy=multi-user.target
             use std::io::Write;
             file.write_all(service_content.as_bytes())?;
 
-            println!("Systemd service created at: {}", service_path);
+            println!("Systemd service created at: {service_path}");
 
             Command::new("systemctl")
-                .args(&["daemon-reload"])
+                .args(["daemon-reload"])
                 .output()?;
 
             println!("Run 'systemctl enable --now process-cpu-agent' to start the service");
@@ -189,8 +189,8 @@ echo "Process CPU Agent started with PID $(cat /var/run/process-cpu-agent.pid)" 
             fs::set_permissions(&script_path, permissions)?;
         }
 
-        println!("Startup script created at: {}", script_path);
-        println!("Run the script to start the agent: {}", script_path);
+        println!("Startup script created at: {script_path}");
+        println!("Run the script to start the agent: {script_path}");
 
         Ok(())
     }
@@ -226,7 +226,7 @@ metrics:
         use std::io::Write;
         file.write_all(config_content.as_bytes())?;
 
-        println!("Configuration file created at: {}", config_path);
+        println!("Configuration file created at: {config_path}");
         Ok(())
     }
 }

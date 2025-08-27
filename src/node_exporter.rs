@@ -49,7 +49,7 @@ impl NodeExporterSetup {
 
     fn download_and_extract(&self, arch: &str) -> Result<(), Box<dyn std::error::Error>> {
         let url = self.download_url(arch);
-        println!("Downloading from: {}", url);
+        println!("Downloading from: {url}");
 
         let response = reqwest::blocking::get(&url)?;
         let bytes = response.bytes()?;
@@ -61,7 +61,7 @@ impl NodeExporterSetup {
         fs::create_dir_all(&extract_path)?;
         archive.unpack(&extract_path)?;
 
-        println!("Node Exporter extracted to: {}", extract_path);
+        println!("Node Exporter extracted to: {extract_path}");
         Ok(())
     }
 
@@ -88,10 +88,10 @@ WantedBy=multi-user.target
         if Path::new("/etc/systemd/system").exists() {
             let mut file = fs::File::create(service_path)?;
             file.write_all(service_content.as_bytes())?;
-            println!("Systemd service created at: {}", service_path);
+            println!("Systemd service created at: {service_path}");
 
             Command::new("systemctl")
-                .args(&["daemon-reload"])
+                .args(["daemon-reload"])
                 .output()?;
 
             println!("Run 'systemctl enable --now node_exporter' to start the service");

@@ -15,8 +15,8 @@ fn main() {
     let os_type = detect_os();
     let arch = os_detector::get_arch();
 
-    println!("Detected OS: {:?}", os_type);
-    println!("Architecture: {}", arch);
+    println!("Detected OS: {os_type:?}");
+    println!("Architecture: {arch}");
     println!("64-bit: {}\n", os_detector::is_64bit());
 
     let process_agent_setup = ProcessCpuAgentSetup::new();
@@ -28,7 +28,7 @@ fn main() {
             println!("1. Setting up Node Exporter...");
             let node_setup = NodeExporterSetup::new();
             if let Err(e) = node_setup.setup() {
-                eprintln!("Node Exporter setup failed: {}", e);
+                eprintln!("Node Exporter setup failed: {e}");
             }
 
             println!("\n2. Setting up Process CPU Agent...");
@@ -43,7 +43,7 @@ fn main() {
             println!("1. Setting up Windows Exporter...");
             let windows_setup = WindowsExporterSetup::new();
             if let Err(e) = windows_setup.setup() {
-                eprintln!("Windows Exporter setup failed: {}", e);
+                eprintln!("Windows Exporter setup failed: {e}");
             }
             windows_setup.create_config_file().ok();
 
@@ -60,7 +60,7 @@ fn main() {
             println!("1. Setting up Node Exporter...");
             let node_setup = NodeExporterSetup::new();
             if let Err(e) = node_setup.setup() {
-                eprintln!("Node Exporter setup failed: {}", e);
+                eprintln!("Node Exporter setup failed: {e}");
             }
 
             println!("\n2. Setting up Process CPU Agent...");
@@ -102,7 +102,7 @@ fn main() {
             println!("5. Configure Prometheus to scrape these exporters");
         }
         Err(e) => {
-            eprintln!("\n✗ Setup failed: {}", e);
+            eprintln!("\n✗ Setup failed: {e}");
             eprintln!("Please check permissions and try again");
             std::process::exit(1);
         }

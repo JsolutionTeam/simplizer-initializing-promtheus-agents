@@ -46,7 +46,7 @@ impl WindowsExporterSetup {
 
     fn download_installer(&self, arch: &str) -> Result<(), Box<dyn std::error::Error>> {
         let url = self.download_url(arch);
-        println!("Downloading from: {}", url);
+        println!("Downloading from: {url}");
 
         let response = reqwest::blocking::get(&url)?;
         let bytes = response.bytes()?;
@@ -56,8 +56,7 @@ impl WindowsExporterSetup {
         file.write_all(&bytes)?;
 
         println!(
-            "Windows Exporter installer downloaded to: {}",
-            installer_path
+            "Windows Exporter installer downloaded to: {installer_path}"
         );
         Ok(())
     }
@@ -68,7 +67,7 @@ impl WindowsExporterSetup {
         println!("Installing Windows Exporter...");
 
         let output = Command::new("msiexec")
-            .args(&[
+            .args([
                 "/i",
                 &installer_path,
                 "/quiet",
@@ -82,7 +81,7 @@ impl WindowsExporterSetup {
             println!("Windows Exporter installed successfully");
         } else {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Installation failed: {}", error).into());
+            return Err(format!("Installation failed: {error}").into());
         }
 
         Ok(())
@@ -92,18 +91,17 @@ impl WindowsExporterSetup {
         println!("Configuring Windows Exporter service...");
 
         Command::new("sc")
-            .args(&["config", "windows_exporter", "start=auto"])
+            .args(["config", "windows_exporter", "start=auto"])
             .output()?;
 
         let output = Command::new("sc")
-            .args(&["start", "windows_exporter"])
+            .args(["start", "windows_exporter"])
             .output()?;
 
         if output.status.success() {
             println!("Windows Exporter service started successfully");
             println!(
-                "Metrics available at: http://localhost:{}/metrics",
-                WINDOWS_EXPORTER_PORT
+                "Metrics available at: http://localhost:{WINDOWS_EXPORTER_PORT}/metrics"
             );
         } else {
             println!("Please start the service manually: sc start windows_exporter");
@@ -142,7 +140,7 @@ collector:
         let mut file = fs::File::create(&config_path)?;
         file.write_all(config_content.as_bytes())?;
 
-        println!("Configuration file created at: {}", config_path);
+        println!("Configuration file created at: {config_path}");
         Ok(())
     }
 }
