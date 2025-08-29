@@ -55,7 +55,7 @@ mod tests {
     fn test_is_64bit() {
         let is_64 = is_64bit();
         let arch = get_arch();
-        
+
         if arch == "x86_64" || arch == "aarch64" {
             assert!(is_64);
         } else {

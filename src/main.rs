@@ -1,14 +1,12 @@
-mod exports_downloader;
-mod node_exporter;
+mod exporter;
 mod os_detector;
-mod process_cpu_agent;
-mod windows_exporter;
 
-use node_exporter::NodeExporterSetup;
+use exporter::node_exporter::NodeExporterSetup;
+use exporter::process_exporter::ProcessCpuAgentSetup;
+use exporter::windows_exporter::WindowsExporterSetup;
+
 use os_detector::{OsType, detect_os};
-use process_cpu_agent::ProcessCpuAgentSetup;
 use std::env;
-use windows_exporter::WindowsExporterSetup;
 
 fn main() {
     println!("Prometheus Exporters Setup Tool");
