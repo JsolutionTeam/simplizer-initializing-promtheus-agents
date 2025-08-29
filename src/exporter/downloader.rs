@@ -102,10 +102,10 @@ pub fn extract_zip(
         if file.name().ends_with('/') {
             fs::create_dir_all(&outpath)?;
         } else {
-            if let Some(p) = outpath.parent() {
-                if !p.exists() {
-                    fs::create_dir_all(p)?;
-                }
+            if let Some(p) = outpath.parent()
+                && !p.exists()
+            {
+                fs::create_dir_all(p)?;
             }
             let mut outfile = File::create(&outpath)?;
             std::io::copy(&mut file, &mut outfile)?;
