@@ -1,3 +1,4 @@
+mod exports_downloader;
 mod node_exporter;
 mod os_detector;
 mod process_cpu_agent;
@@ -6,11 +7,24 @@ mod windows_exporter;
 use node_exporter::NodeExporterSetup;
 use os_detector::{OsType, detect_os};
 use process_cpu_agent::ProcessCpuAgentSetup;
+use std::env;
 use windows_exporter::WindowsExporterSetup;
 
 fn main() {
     println!("Prometheus Exporters Setup Tool");
     println!("================================\n");
+
+    // Get Process CPU Agent download URL from environment variable or command line argument
+    let process_cpu_agent_url = env::var("PROCESS_CPU_AGENT_URL")
+        .ok()
+        .or_else(|| env::args().nth(1));
+
+    if process_cpu_agent_url.is_some() {
+        println!(
+            "Using custom Process CPU Agent URL: {}",
+            process_cpu_agent_url.as_ref().unwrap()
+        );
+    }
 
     let os_type = detect_os();
     let arch = os_detector::get_arch();
@@ -19,7 +33,7 @@ fn main() {
     println!("Architecture: {arch}");
     println!("64-bit: {}\n", os_detector::is_64bit());
 
-    let process_agent_setup = ProcessCpuAgentSetup::new();
+    let process_agent_setup = ProcessCpuAgentSetup::new(process_cpu_agent_url);
 
     let result = match os_type {
         OsType::Linux => {
@@ -100,6 +114,13 @@ fn main() {
                 _ => {}
             }
             println!("5. Configure Prometheus to scrape these exporters");
+
+            println!("\n📌 Custom Download URLs:");
+            println!("   You can specify a custom Process CPU Agent download URL:");
+            println!(
+                "   - Via environment variable: PROCESS_CPU_AGENT_URL=<url> ./prometheus-agents-setup"
+            );
+            println!("   - Via command line argument: ./prometheus-agents-setup <url>");
         }
         Err(e) => {
             eprintln!("\n✗ Setup failed: {e}");

@@ -49,6 +49,12 @@ impl WindowsExporterSetup {
         println!("Downloading from: {url}");
 
         let response = reqwest::blocking::get(&url)?;
+        
+        // Check if the response is successful (2xx status code)
+        if !response.status().is_success() {
+            return Err(format!("Failed to download: HTTP {}", response.status()).into());
+        }
+        
         let bytes = response.bytes()?;
 
         let installer_path = format!("{}\\windows_exporter.msi", self.install_path);
@@ -132,11 +138,127 @@ collector:
     processes-where: "Name LIKE 'chrome%' OR Name = 'firefox'"
 "#;
 
-        let config_path = format!("{}\\windows_exporter.yml", self.install_path);
+        // Use proper path separator based on OS
+        let config_path = if cfg!(windows) {
+            format!("{}\\windows_exporter.yml", self.install_path)
+        } else {
+            format!("{}/windows_exporter.yml", self.install_path)
+        };
+        
         let mut file = fs::File::create(&config_path)?;
         file.write_all(config_content.as_bytes())?;
 
         println!("Configuration file created at: {config_path}");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_windows_exporter_creation() {
+        let setup = WindowsExporterSetup::new();
+        assert_eq!(setup.version, "0.25.1");
+        assert_eq!(setup.install_path, "C:\\Program Files\\prometheus");
+    }
+
+    #[test]
+    fn test_download_url_generation() {
+        let setup = WindowsExporterSetup::new();
+        
+        let url_amd64 = setup.download_url("x86_64");
+        assert!(url_amd64.contains("windows_exporter-0.25.1-amd64.msi"));
+        assert!(url_amd64.starts_with("https://github.com/prometheus-community/windows_exporter/releases/download/"));
+        
+        let url_386 = setup.download_url("x86");
+        assert!(url_386.contains("windows_exporter-0.25.1-386.msi"));
+    }
+
+    #[test]
+    fn test_arch_mapping() {
+        let setup = WindowsExporterSetup::new();
+        
+        // Test x86_64 maps to amd64
+        let url = setup.download_url("x86_64");
+        assert!(url.contains("amd64"));
+        
+        // Test other architectures map to 386
+        let url = setup.download_url("x86");
+        assert!(url.contains("386"));
+    }
+
+    #[test]
+    fn test_create_directories() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path().join("test_prometheus");
+        
+        let mut setup = WindowsExporterSetup::new();
+        setup.install_path = test_path.to_str().unwrap().to_string();
+        
+        let result = setup.create_directories();
+        assert!(result.is_ok());
+        assert!(test_path.exists());
+    }
+
+    #[test]
+    fn test_version_constant() {
+        assert_eq!(WINDOWS_EXPORTER_VERSION, "0.25.1");
+    }
+
+    #[test]
+    fn test_port_constant() {
+        assert_eq!(WINDOWS_EXPORTER_PORT, 9182);
+    }
+
+    #[test]
+    fn test_create_config_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path().join("test_prometheus");
+        fs::create_dir_all(&test_path).unwrap();
+        
+        let mut setup = WindowsExporterSetup::new();
+        setup.install_path = test_path.to_str().unwrap().to_string();
+        
+        let result = setup.create_config_file();
+        assert!(result.is_ok());
+        
+        // Check file exists with proper path separator
+        let config_path = test_path.join("windows_exporter.yml");
+        assert!(config_path.exists());
+        
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("Windows Exporter Configuration"));
+        assert!(content.contains("collectors:"));
+        assert!(content.contains("cpu"));
+        assert!(content.contains("memory"));
+        assert!(content.contains("logical_disk"));
+    }
+
+    #[test]
+    fn test_installer_path() {
+        let setup = WindowsExporterSetup::new();
+        let installer_path = format!("{}\\windows_exporter.msi", setup.install_path);
+        
+        assert!(installer_path.contains("windows_exporter.msi"));
+        assert!(installer_path.contains(&setup.install_path));
+    }
+
+    #[test]
+    fn test_download_installer_invalid_url() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path().join("test_prometheus");
+        fs::create_dir_all(&test_path).unwrap();
+        
+        let mut setup = WindowsExporterSetup::new();
+        setup.install_path = test_path.to_str().unwrap().to_string();
+        // Use an invalid version that will cause 404
+        setup.version = "99.99.99".to_string();
+        
+        let result = setup.download_installer("x86_64");
+        // GitHub will return 404 for non-existent version
+        assert!(result.is_err());
     }
 }
