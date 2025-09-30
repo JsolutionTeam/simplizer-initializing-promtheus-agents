@@ -94,20 +94,20 @@ fn main() {
                     println!(
                         "2. Start Process CPU Agent: sudo systemctl enable --now process-cpu-agent"
                     );
-                    println!("3. Check Node Exporter metrics: http://localhost:9100/metrics");
-                    println!("4. Check Process CPU Agent metrics: http://localhost:9256/metrics");
+                    println!("3. Check Node Exporter metrics: http://localhost:31415/metrics");
+                    println!("4. Check Process CPU Agent metrics: http://localhost:31416/metrics");
                 }
                 OsType::Windows => {
                     println!("1. Check Windows Exporter: sc query windows_exporter");
                     println!("2. Start Process CPU Agent: sc start ProcessCpuAgent");
-                    println!("3. Check Windows Exporter metrics: http://localhost:9182/metrics");
-                    println!("4. Check Process CPU Agent metrics: http://localhost:9256/metrics");
+                    println!("3. Check Windows Exporter metrics: http://localhost:31415/metrics");
+                    println!("4. Check Process CPU Agent metrics: http://localhost:31416/metrics");
                 }
                 OsType::MacOs => {
                     println!("1. Start Node Exporter manually from /opt/prometheus/node_exporter");
                     println!("2. Start Process CPU Agent from /opt/prometheus/process-cpu-agent");
-                    println!("3. Check Node Exporter metrics: http://localhost:9100/metrics");
-                    println!("4. Check Process CPU Agent metrics: http://localhost:9256/metrics");
+                    println!("3. Check Node Exporter metrics: http://localhost:31415/metrics");
+                    println!("4. Check Process CPU Agent metrics: http://localhost:31416/metrics");
                 }
                 _ => {}
             }
