@@ -3,7 +3,7 @@ use std::io::Write;
 use std::process::Command;
 
 const WINDOWS_EXPORTER_VERSION: &str = "0.25.1";
-const WINDOWS_EXPORTER_PORT: u16 = 9182;
+const WINDOWS_EXPORTER_PORT: u16 = 31415;
 
 pub struct WindowsExporterSetup {
     version: String,
@@ -77,6 +77,7 @@ impl WindowsExporterSetup {
                 "/quiet",
                 "/norestart",
                 &format!("INSTALLDIR={}", self.install_path),
+                &format!("LISTEN_PORT={}", WINDOWS_EXPORTER_PORT),
                 "ENABLED_COLLECTORS=cpu,cs,logical_disk,net,os,service,system,textfile,process,memory"
             ])
             .output()?;
@@ -212,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_port_constant() {
-        assert_eq!(WINDOWS_EXPORTER_PORT, 9182);
+        assert_eq!(WINDOWS_EXPORTER_PORT, 31415);
     }
 
     #[test]

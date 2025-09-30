@@ -1,7 +1,7 @@
 use crate::exporter::downloader;
 use std::process::Command;
 
-const PROCESS_CPU_AGENT_PORT: u16 = 9256;
+const PROCESS_CPU_AGENT_PORT: u16 = 31416;
 
 pub struct ProcessCpuAgentSetup {
     install_path: String,
@@ -368,15 +368,15 @@ mod tests {
         assert!(config_path.exists());
 
         let content = fs::read_to_string(config_path).unwrap();
-        assert!(content.contains("port: 9256"));
+        assert!(content.contains("port: 31416"));
         assert!(content.contains("Process CPU Agent Configuration"));
     }
 
     #[test]
     fn test_create_config_content() {
-        let content = create_config_content(9256);
+        let content = create_config_content(31416);
 
-        assert!(content.contains("port: 9256"));
+        assert!(content.contains("port: 31416"));
         assert!(content.contains("Process CPU Agent Configuration"));
         assert!(content.contains("interval: 15"));
         assert!(content.contains("max_processes: 100"));
@@ -385,11 +385,11 @@ mod tests {
     #[cfg(not(windows))]
     #[test]
     fn test_create_linux_service_content() {
-        let content = create_linux_service_content("/opt/prometheus", 9256);
+        let content = create_linux_service_content("/opt/prometheus", 31416);
 
         assert!(content.contains("Description=Process CPU Agent for Prometheus"));
         assert!(content.contains("/opt/prometheus"));
-        assert!(content.contains("--port 9256"));
+        assert!(content.contains("--port 31416"));
         assert!(content.contains("WantedBy=multi-user.target"));
     }
 
@@ -408,7 +408,7 @@ mod tests {
 
     #[test]
     fn test_port_constant() {
-        assert_eq!(PROCESS_CPU_AGENT_PORT, 9256);
+        assert_eq!(PROCESS_CPU_AGENT_PORT, 31416);
     }
 
     #[test]

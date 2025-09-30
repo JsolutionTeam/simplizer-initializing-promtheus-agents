@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::Command;
 
 const NODE_EXPORTER_VERSION: &str = "1.7.0";
-const NODE_EXPORTER_PORT: u16 = 9100;
+const NODE_EXPORTER_PORT: u16 = 31415;
 
 pub struct NodeExporterSetup {
     version: String,
@@ -82,7 +82,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart={install_path}/node_exporter/node_exporter-{version}.linux-amd64/node_exporter
+ExecStart={install_path}/node_exporter/node_exporter-{version}.linux-amd64/node_exporter --web.listen-address=:31415
 Restart=always
 RestartSec=10
 
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_port_constant() {
-        assert_eq!(NODE_EXPORTER_PORT, 9100);
+        assert_eq!(NODE_EXPORTER_PORT, 31415);
     }
 
     #[test]
