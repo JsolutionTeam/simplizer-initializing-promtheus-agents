@@ -21,7 +21,7 @@ if [[ $EUID -ne 0 ]]; then
    error "This script must be run as root (use sudo)"
 fi
 
-VERSION="v0.1.7"
+VERSION="v0.1.8"
 REPO="JsolutionTeam/simplizer-initializing-promtheus-agents"
 BINARY_NAME="prometheus-agents-setup-linux-amd64"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/$BINARY_NAME"
