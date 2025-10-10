@@ -23,7 +23,7 @@ fi
 
 VERSION="v0.1.7"
 REPO="JsolutionTeam/simplizer-initializing-promtheus-agents"
-BINARY_NAME="process-prometheus-linux-amd64"
+BINARY_NAME="prometheus-agents-setup-linux-amd64"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/$BINARY_NAME"
 INSTALL_DIR="/opt/prometheus"
 SERVICE_NAME="prometheus-agents"
