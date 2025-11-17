@@ -85,6 +85,10 @@ impl ProcessCpuAgentSetup {
         println!("Systemd service created at: {service_path}");
 
         Command::new("systemctl").args(["daemon-reload"]).output()?;
+        Command::new("systemctl")
+            .args(["enable", "--now", "process-cpu-agent"])
+            .output()?;
+        println!("Process CPU Agent service enabled and started");
 
         Ok(())
     }
@@ -171,12 +175,17 @@ pub fn setup_windows_service(
     // Register a Task Scheduler job that runs the agent at system startup
     // under the SYSTEM account, similar in spirit to a service but without
     // requiring the binary to implement the Windows service protocol.
+    let task_name = "ProcessCpuAgent";
+    // Use cmd.exe so we can change to the install directory first. Many agents
+    // resolve config files relative to their working directory.
     //
     // Equivalent CLI:
-    //   schtasks /Create /TN "ProcessCpuAgent" /SC ONSTART /RU SYSTEM /RL HIGHEST /F \
-    //            /TR "\"C:\Program Files\prometheus\process-cpu-agent\process-cpu-agent.exe\""
-    let task_name = "ProcessCpuAgent";
-    let task_run = format!("\"{binary_path}\"");
+    //   schtasks /Create /TN "ProcessCpuAgent" /SC ONSTART /RU SYSTEM /RL HIGHEST /F ^
+    //            /TR "cmd.exe /C \"cd /d \"C:\Program Files\prometheus\process-cpu-agent\" && \"C:\Program Files\prometheus\process-cpu-agent\process-cpu-agent.exe\"\""
+    let task_run = format!(
+        "cmd.exe /C \"cd /d \\\"{}\\\" && \\\"{}\\\"\"",
+        install_path, binary_path
+    );
 
     let output = Command::new("schtasks")
         .args([
@@ -197,6 +206,21 @@ pub fn setup_windows_service(
 
     if output.status.success() {
         println!("Windows scheduled task registered successfully");
+        // 설치 직후 한 번 바로 실행 시도
+        let run_output = Command::new("schtasks")
+            .args(["/Run", "/TN", task_name])
+            .output()?;
+        if run_output.status.success() {
+            println!("Windows scheduled task triggered successfully");
+        } else {
+            let stderr = String::from_utf8_lossy(&run_output.stderr);
+            let stdout = String::from_utf8_lossy(&run_output.stdout);
+            println!(
+                "Warning: Failed to run ProcessCpuAgent task immediately: {}\n{}",
+                stderr.trim(),
+                stdout.trim()
+            );
+        }
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);

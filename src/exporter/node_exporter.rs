@@ -83,8 +83,11 @@ impl NodeExporterSetup {
             println!("Systemd service created at: {service_path}");
 
             Command::new("systemctl").args(["daemon-reload"]).output()?;
-
-            println!("Run 'systemctl enable --now node_exporter' to start the service");
+            // 자동으로 서비스 활성화 및 시작까지 시도
+            Command::new("systemctl")
+                .args(["enable", "--now", "node_exporter"])
+                .output()?;
+            println!("Node Exporter service enabled and started");
         } else {
             println!("Systemd not found. Please manually configure the service.");
         }
