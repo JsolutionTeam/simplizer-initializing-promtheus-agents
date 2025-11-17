@@ -36,6 +36,9 @@ impl ProcessCpuAgentSetup {
 
         self.create_directories()?;
         self.write_binary()?;
+        // Ensure configuration file exists before wiring services so that
+        // the agent can start with a valid config on first run.
+        self.create_config_file()?;
         #[cfg(windows)]
         {
             self.setup_windows_service()?;
@@ -89,7 +92,9 @@ impl ProcessCpuAgentSetup {
     fn setup_windows_service(&self) -> Result<(), Box<dyn std::error::Error>> {
         setup_windows_service(&self.install_path, PROCESS_CPU_AGENT_PORT)
     }
+}
 
+impl ProcessCpuAgentSetup {
     pub fn create_config_file(&self) -> Result<(), Box<dyn std::error::Error>> {
         let config_path = get_config_path(&self.install_path);
 

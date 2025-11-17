@@ -44,10 +44,7 @@ fn main() {
             }
 
             println!("\n2. Setting up Process CPU Agent...");
-            match process_agent_setup.setup() {
-                Ok(_) => process_agent_setup.create_config_file(),
-                Err(e) => Err(e),
-            }
+            process_agent_setup.setup()
         }
         OsType::Windows => {
             println!("Setting up exporters for Windows...\n");
@@ -60,10 +57,7 @@ fn main() {
             windows_setup.create_config_file().ok();
 
             println!("\n2. Setting up Process CPU Agent...");
-            match process_agent_setup.setup() {
-                Ok(_) => process_agent_setup.create_config_file(),
-                Err(e) => Err(e),
-            }
+            process_agent_setup.setup()
         }
         OsType::MacOs => {
             println!("Setting up exporters for macOS...\n");
@@ -76,10 +70,7 @@ fn main() {
             }
 
             println!("\n2. Setting up Process CPU Agent...");
-            match process_agent_setup.setup() {
-                Ok(_) => process_agent_setup.create_config_file(),
-                Err(e) => Err(e),
-            }
+            process_agent_setup.setup()
         }
         OsType::Unknown => Err("Unsupported operating system".into()),
     };
