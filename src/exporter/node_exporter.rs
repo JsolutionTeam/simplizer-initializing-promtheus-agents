@@ -57,10 +57,11 @@ impl NodeExporterSetup {
         let extract_path = format!("{}/node_exporter", self.install_path);
 
         if self.version == NODE_EXPORTER_VERSION
-            && let Some(bytes) = EMBEDDED_NODE_EXPORTER_ARCHIVE {
-                downloader::extract_tar_gz(bytes, &extract_path)?;
-                return Ok(());
-            }
+            && let Some(bytes) = EMBEDDED_NODE_EXPORTER_ARCHIVE
+        {
+            downloader::extract_tar_gz(bytes, &extract_path)?;
+            return Ok(());
+        }
 
         let url = self.download_url(arch);
         downloader::download_and_extract_tar_gz(&url, &extract_path)?;

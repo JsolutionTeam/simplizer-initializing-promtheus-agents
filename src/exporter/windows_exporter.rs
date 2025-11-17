@@ -54,10 +54,11 @@ impl WindowsExporterSetup {
 
     fn download_installer(&self, arch: &str) -> Result<(), Box<dyn std::error::Error>> {
         if self.version == WINDOWS_EXPORTER_VERSION
-            && let Some(bytes) = EMBEDDED_WINDOWS_EXPORTER {
-                self.write_installer(bytes)?;
-                return Ok(());
-            }
+            && let Some(bytes) = EMBEDDED_WINDOWS_EXPORTER
+        {
+            self.write_installer(bytes)?;
+            return Ok(());
+        }
 
         let url = self.download_url(arch);
         println!("Downloading from: {url}");
