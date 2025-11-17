@@ -1,0 +1,18 @@
+services:
+  linux-agent:
+    container_name: prometheus-agents-linux-test
+    build:
+      context: ..
+      dockerfile: docker/linux-agent/Dockerfile
+    privileged: true
+    cgroupns_mode: host
+    command: ["/lib/systemd/systemd"]
+    environment:
+      - PROCESS_CPU_AGENT_URL
+    volumes:
+      - ..:/workspace
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /run/lock
+      - /tmp
