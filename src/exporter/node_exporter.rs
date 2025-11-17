@@ -5,6 +5,14 @@ use std::process::Command;
 const NODE_EXPORTER_VERSION: &str = "1.7.0";
 const NODE_EXPORTER_PORT: u16 = 31415;
 
+#[cfg(target_os = "linux")]
+const EMBEDDED_NODE_EXPORTER_ARCHIVE: Option<&[u8]> = Some(include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/node_exporter.tar.gz"
+)));
+#[cfg(not(target_os = "linux"))]
+const EMBEDDED_NODE_EXPORTER_ARCHIVE: Option<&[u8]> = None;
+
 pub struct NodeExporterSetup {
     version: String,
     install_path: String,
@@ -36,7 +44,7 @@ impl NodeExporterSetup {
 
         self.create_directories()?;
         self.download_and_extract(arch)?;
-        self.create_systemd_service()?;
+        self.create_systemd_service(arch)?;
 
         Ok(())
     }
@@ -46,16 +54,23 @@ impl NodeExporterSetup {
     }
 
     fn download_and_extract(&self, arch: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let url = self.download_url(arch);
         let extract_path = format!("{}/node_exporter", self.install_path);
 
+        if self.version == NODE_EXPORTER_VERSION
+            && let Some(bytes) = EMBEDDED_NODE_EXPORTER_ARCHIVE {
+                downloader::extract_tar_gz(bytes, &extract_path)?;
+                return Ok(());
+            }
+
+        let url = self.download_url(arch);
         downloader::download_and_extract_tar_gz(&url, &extract_path)?;
 
         Ok(())
     }
 
-    fn create_systemd_service(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let service_content = create_systemd_service_content(&self.install_path, &self.version);
+    fn create_systemd_service(&self, arch: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let service_content =
+            create_systemd_service_content(&self.install_path, &self.version, arch);
         let service_path = "/etc/systemd/system/node_exporter.service";
 
         if Path::new("/etc/systemd/system").exists() {
@@ -74,7 +89,7 @@ impl NodeExporterSetup {
 }
 
 /// Create systemd service content for Node Exporter
-pub fn create_systemd_service_content(install_path: &str, version: &str) -> String {
+pub fn create_systemd_service_content(install_path: &str, version: &str, arch: &str) -> String {
     format!(
         r#"[Unit]
 Description=Prometheus Node Exporter
@@ -82,7 +97,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart={install_path}/node_exporter/node_exporter-{version}.linux-amd64/node_exporter --web.listen-address=:31415
+ExecStart={install_path}/node_exporter/node_exporter-{version}.linux-{arch}/node_exporter --web.listen-address=:31415
 Restart=always
 RestartSec=10
 
@@ -101,10 +116,18 @@ pub fn generate_download_url(version: &str, arch: &str) -> String {
 
 /// Get architecture string for Node Exporter
 pub fn get_node_exporter_arch() -> &'static str {
-    if crate::os_detector::is_64bit() {
-        "amd64"
-    } else {
-        "386"
+    match std::env::consts::ARCH {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        "arm" | "armv7l" => "armv7",
+        "i686" | "i586" | "x86" => "386",
+        _ => {
+            if crate::os_detector::is_64bit() {
+                "amd64"
+            } else {
+                "386"
+            }
+        }
     }
 }
 
@@ -116,17 +139,25 @@ pub fn setup_node_exporter(
     println!("Setting up Node Exporter v{version}");
 
     let arch = get_node_exporter_arch();
-    let url = generate_download_url(version, arch);
     let extract_path = format!("{install_path}/node_exporter");
 
     // Create directories
     downloader::ensure_directory_exists(install_path)?;
 
-    // Download and extract
-    downloader::download_and_extract_tar_gz(&url, &extract_path)?;
+    if version == NODE_EXPORTER_VERSION {
+        if let Some(bytes) = EMBEDDED_NODE_EXPORTER_ARCHIVE {
+            downloader::extract_tar_gz(bytes, &extract_path)?;
+        } else {
+            let url = generate_download_url(version, arch);
+            downloader::download_and_extract_tar_gz(&url, &extract_path)?;
+        }
+    } else {
+        let url = generate_download_url(version, arch);
+        downloader::download_and_extract_tar_gz(&url, &extract_path)?;
+    }
 
     // Create systemd service
-    let service_content = create_systemd_service_content(install_path, version);
+    let service_content = create_systemd_service_content(install_path, version, arch);
     let service_path = "/etc/systemd/system/node_exporter.service";
 
     if Path::new("/etc/systemd/system").exists() {
@@ -179,10 +210,17 @@ mod tests {
     fn test_arch_selection() {
         let arch = get_node_exporter_arch();
 
-        if crate::os_detector::is_64bit() {
-            assert_eq!(arch, "amd64");
-        } else {
-            assert_eq!(arch, "386");
+        match std::env::consts::ARCH {
+            "x86_64" => assert_eq!(arch, "amd64"),
+            "aarch64" => assert_eq!(arch, "arm64"),
+            "arm" | "armv7l" => assert_eq!(arch, "armv7"),
+            _ => {
+                if crate::os_detector::is_64bit() {
+                    assert_eq!(arch, "amd64");
+                } else {
+                    assert_eq!(arch, "386");
+                }
+            }
         }
     }
 
@@ -211,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_systemd_service_content_function() {
-        let content = create_systemd_service_content("/opt/prometheus", "1.7.0");
+        let content = create_systemd_service_content("/opt/prometheus", "1.7.0", "amd64");
 
         assert!(content.contains("Description=Prometheus Node Exporter"));
         assert!(content.contains("1.7.0"));
@@ -231,7 +269,8 @@ mod tests {
     #[test]
     fn test_systemd_service_content() {
         let setup = NodeExporterSetup::new();
-        let service_content = create_systemd_service_content(&setup.install_path, &setup.version);
+        let service_content =
+            create_systemd_service_content(&setup.install_path, &setup.version, "amd64");
 
         assert!(service_content.contains("Description=Prometheus Node Exporter"));
         assert!(service_content.contains(&setup.version));

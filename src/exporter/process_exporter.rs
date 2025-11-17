@@ -1,30 +1,40 @@
 use crate::exporter::downloader;
+use std::fs;
 use std::process::Command;
-
 const PROCESS_CPU_AGENT_PORT: u16 = 31416;
+const EMBEDDED_PROCESS_AGENT: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/process_cpu_agent.bin"));
+
+#[derive(Debug, Clone, PartialEq)]
+enum AgentSource {
+    Embedded,
+    Remote(String),
+}
 
 pub struct ProcessCpuAgentSetup {
     install_path: String,
-    download_url: String,
+    source: AgentSource,
 }
-
 impl ProcessCpuAgentSetup {
     pub fn new(download_url: Option<String>) -> Self {
-        let default_url = generate_default_download_url();
+        let source = download_url
+            .map(AgentSource::Remote)
+            .unwrap_or(AgentSource::Embedded);
 
         Self {
             install_path: get_default_install_path(),
-            download_url: download_url.unwrap_or(default_url),
+            source,
         }
     }
-
     pub fn setup(&self) -> Result<(), Box<dyn std::error::Error>> {
         println!("Setting up Process CPU Agent...");
-        println!("Download URL: {}", self.download_url);
+        match &self.source {
+            AgentSource::Embedded => println!("Using embedded Process CPU Agent binary"),
+            AgentSource::Remote(url) => println!("Download URL: {url}"),
+        }
 
         self.create_directories()?;
-        self.download_binary()?;
-
+        self.write_binary()?;
         #[cfg(windows)]
         {
             self.setup_windows_service()?;
@@ -41,15 +51,25 @@ impl ProcessCpuAgentSetup {
     fn create_directories(&self) -> Result<(), Box<dyn std::error::Error>> {
         downloader::ensure_directory_exists(&self.install_path)
     }
-
-    fn download_binary(&self) -> Result<(), Box<dyn std::error::Error>> {
+    fn write_binary(&self) -> Result<(), Box<dyn std::error::Error>> {
         let target_binary = get_binary_path(&self.install_path);
-        downloader::download_file(&self.download_url, &target_binary)?;
-
-        println!("Process CPU Agent binary downloaded to: {target_binary}");
+        match &self.source {
+            AgentSource::Embedded => {
+                if let Some(parent) = std::path::Path::new(&target_binary).parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::write(&target_binary, EMBEDDED_PROCESS_AGENT)?;
+                println!(
+                    "Process CPU Agent binary written from embedded artifact: {target_binary}"
+                );
+            }
+            AgentSource::Remote(url) => {
+                downloader::download_file(url, &target_binary)?;
+                println!("Process CPU Agent binary downloaded to: {target_binary}");
+            }
+        }
         Ok(())
     }
-
     #[cfg(not(windows))]
     fn setup_linux_service(&self) -> Result<(), Box<dyn std::error::Error>> {
         let service_content =
@@ -77,30 +97,6 @@ impl ProcessCpuAgentSetup {
         println!("Configuration file created at: {config_path}");
 
         Ok(())
-    }
-}
-
-/// Generate default download URL based on OS and architecture
-pub fn generate_default_download_url() -> String {
-    match std::env::consts::OS {
-        "windows" => "https://github.com/your-org/process-cpu-agent/releases/latest/download/process-cpu-agent-windows-amd64.exe".to_string(),
-        "linux" => {
-            let arch = if crate::os_detector::is_64bit() {
-                "amd64"
-            } else {
-                "386"
-            };
-            format!("https://github.com/your-org/process-cpu-agent/releases/latest/download/process-cpu-agent-linux-{arch}")
-        }
-        "macos" => {
-            let arch = if std::env::consts::ARCH == "aarch64" {
-                "arm64"
-            } else {
-                "amd64"
-            };
-            format!("https://github.com/your-org/process-cpu-agent/releases/latest/download/process-cpu-agent-darwin-{arch}")
-        }
-        _ => "https://github.com/your-org/process-cpu-agent/releases/latest/download/process-cpu-agent-linux-amd64".to_string(),
     }
 }
 
@@ -228,84 +224,50 @@ pub fn setup_process_cpu_agent(
     download_url: Option<String>,
     install_path: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let url = download_url.unwrap_or_else(generate_default_download_url);
-    let path = install_path.unwrap_or_else(get_default_install_path);
-
-    println!("Setting up Process CPU Agent...");
-    println!("Download URL: {url}");
-
-    // Create directories
-    downloader::ensure_directory_exists(&path)?;
-
-    // Download binary
-    let target_binary = get_binary_path(&path);
-    downloader::download_file(&url, &target_binary)?;
-    println!("Process CPU Agent binary downloaded to: {target_binary}");
-
-    // Setup service
-    #[cfg(windows)]
-    setup_windows_service(&path, PROCESS_CPU_AGENT_PORT)?;
-
-    #[cfg(not(windows))]
-    {
-        let service_content = create_linux_service_content(&path, PROCESS_CPU_AGENT_PORT);
-        let service_path = "/etc/systemd/system/process-cpu-agent.service";
-
-        downloader::write_file(service_path, service_content.as_bytes())?;
-        println!("Systemd service created at: {service_path}");
-
-        Command::new("systemctl").args(["daemon-reload"]).output()?;
+    let mut setup = ProcessCpuAgentSetup::new(download_url);
+    if let Some(path) = install_path {
+        setup.install_path = path;
     }
 
-    // Create config file
-    let config_content = create_config_content(PROCESS_CPU_AGENT_PORT);
-    let config_path = get_config_path(&path);
-
-    downloader::write_file(&config_path, config_content.as_bytes())?;
-    println!("Configuration file created at: {config_path}");
-
+    setup.setup()?;
+    setup.create_config_file()?;
     Ok(())
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]
     fn test_process_cpu_agent_setup_creation() {
         let setup = ProcessCpuAgentSetup::new(None);
-        assert!(!setup.download_url.is_empty());
+        assert_eq!(setup.source, AgentSource::Embedded);
         assert!(!setup.install_path.is_empty());
+    }
+
+    #[test]
+    fn test_write_binary_from_embedded() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path().join("test_prometheus");
+        fs::create_dir_all(&test_path).unwrap();
+
+        let mut setup = ProcessCpuAgentSetup::new(None);
+        setup.install_path = test_path.to_str().unwrap().to_string();
+
+        setup.write_binary().unwrap();
+        let binary_path = PathBuf::from(get_binary_path(&setup.install_path));
+        assert!(binary_path.exists());
+        let content = fs::read(binary_path).unwrap();
+        assert_eq!(content, EMBEDDED_PROCESS_AGENT);
     }
 
     #[test]
     fn test_custom_download_url() {
         let custom_url = "https://example.com/custom-agent.exe".to_string();
         let setup = ProcessCpuAgentSetup::new(Some(custom_url.clone()));
-        assert_eq!(setup.download_url, custom_url);
-    }
-
-    #[test]
-    fn test_generate_default_download_url() {
-        let url = generate_default_download_url();
-
-        match std::env::consts::OS {
-            "windows" => {
-                assert!(url.contains("windows"));
-                assert!(url.ends_with(".exe"));
-            }
-            "linux" => {
-                assert!(url.contains("linux"));
-            }
-            "macos" => {
-                assert!(url.contains("darwin"));
-            }
-            _ => {
-                assert!(url.contains("linux"));
-            }
-        }
+        assert_eq!(setup.source, AgentSource::Remote(custom_url));
     }
 
     #[test]
@@ -392,9 +354,8 @@ mod tests {
         assert!(content.contains("--port 31416"));
         assert!(content.contains("WantedBy=multi-user.target"));
     }
-
     #[test]
-    fn test_download_binary_invalid_url() {
+    fn test_write_binary_with_invalid_url() {
         let temp_dir = TempDir::new().unwrap();
         let test_path = temp_dir.path().join("test_prometheus");
         fs::create_dir_all(&test_path).unwrap();
@@ -402,10 +363,9 @@ mod tests {
         let mut setup = ProcessCpuAgentSetup::new(Some("http://192.0.2.1:9999/agent".to_string()));
         setup.install_path = test_path.to_str().unwrap().to_string();
 
-        let result = setup.download_binary();
+        let result = setup.write_binary();
         assert!(result.is_err());
     }
-
     #[test]
     fn test_port_constant() {
         assert_eq!(PROCESS_CPU_AGENT_PORT, 31416);

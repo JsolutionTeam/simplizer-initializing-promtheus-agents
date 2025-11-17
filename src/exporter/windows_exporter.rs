@@ -5,6 +5,14 @@ use std::process::Command;
 const WINDOWS_EXPORTER_VERSION: &str = "0.25.1";
 const WINDOWS_EXPORTER_PORT: u16 = 31415;
 
+#[cfg(target_os = "windows")]
+const EMBEDDED_WINDOWS_EXPORTER: Option<&[u8]> = Some(include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/windows_exporter.msi"
+)));
+#[cfg(not(target_os = "windows"))]
+const EMBEDDED_WINDOWS_EXPORTER: Option<&[u8]> = None;
+
 pub struct WindowsExporterSetup {
     version: String,
     install_path: String,
@@ -45,23 +53,31 @@ impl WindowsExporterSetup {
     }
 
     fn download_installer(&self, arch: &str) -> Result<(), Box<dyn std::error::Error>> {
+        if self.version == WINDOWS_EXPORTER_VERSION
+            && let Some(bytes) = EMBEDDED_WINDOWS_EXPORTER {
+                self.write_installer(bytes)?;
+                return Ok(());
+            }
+
         let url = self.download_url(arch);
         println!("Downloading from: {url}");
 
         let response = reqwest::blocking::get(&url)?;
 
-        // Check if the response is successful (2xx status code)
         if !response.status().is_success() {
             return Err(format!("Failed to download: HTTP {}", response.status()).into());
         }
 
         let bytes = response.bytes()?;
+        self.write_installer(&bytes)?;
+        Ok(())
+    }
 
+    fn write_installer(&self, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let installer_path = format!("{}\\windows_exporter.msi", self.install_path);
         let mut file = fs::File::create(&installer_path)?;
-        file.write_all(&bytes)?;
-
-        println!("Windows Exporter installer downloaded to: {installer_path}");
+        file.write_all(bytes)?;
+        println!("Windows Exporter installer prepared at: {installer_path}");
         Ok(())
     }
 
