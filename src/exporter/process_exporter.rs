@@ -184,14 +184,20 @@ pub fn setup_windows_service(
     }
 
     // Create new service: rely on config.toml for port,
-    // so binPath only points to the executable.
+    // so binPath only points to the executable. The sc.exe
+    // syntax is:
+    //   sc create Name binPath= <path> DisplayName= <name> start= auto
+    // Each `key=` must be its own token, matching the CLI help.
     let output = Command::new("sc")
         .args([
             "create",
             "ProcessCpuAgent",
-            &format!("binPath= \"{}\"", binary_path),
-            "DisplayName= \"Process CPU Agent for Prometheus\"",
-            "start= auto",
+            "binPath=",
+            &binary_path,
+            "DisplayName=",
+            "Process CPU Agent for Prometheus",
+            "start=",
+            "auto",
         ])
         .output()?;
 
@@ -213,31 +219,6 @@ pub fn setup_windows_service(
     Ok(())
 }
 
-/// Create configuration file content
-pub fn create_config_content(port: u16) -> String {
-    format!(
-        r#"# Process CPU Agent Configuration
-# This agent collects CPU usage metrics for individual processes
-
-# Listening port
-port: {port}
-
-# Process filters (optional)
-# Only monitor processes matching these patterns
-# process_filters:
-#   - "java"
-#   - "python"
-#   - "node"
-
-# Collection interval in seconds
-interval: 15
-
-# Maximum number of processes to track
-max_processes: 100
-"#
-    )
-}
-
 /// Setup Process CPU Agent with custom parameters
 pub fn setup_process_cpu_agent(
     download_url: Option<String>,
@@ -248,10 +229,11 @@ pub fn setup_process_cpu_agent(
         setup.install_path = path;
     }
 
-    setup.setup()?;
     setup.create_config_file()?;
+    setup.setup()?;
     Ok(())
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -52,7 +52,6 @@ docker run --rm \
   -v "$REPO_ROOT/lib:/workspace/lib:ro" \
   -w /workspace \
   -e PROCESS_CPU_AGENT_URL="${PROCESS_CPU_AGENT_URL:-}" \
-  "$IMAGE_NAME" bash -lc './target/release/prometheus-agents-setup'
+  "$IMAGE_NAME" bash -lc './target/prometheus-agents-setup'
 
 log "Linux Docker exec test finished"
-
