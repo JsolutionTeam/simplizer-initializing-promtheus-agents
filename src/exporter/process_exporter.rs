@@ -185,20 +185,16 @@ pub fn setup_windows_service(
     }
 
     // Create new service: rely on config.toml for port,
-    // so binPath only points to the executable. The sc.exe
-    // syntax is:
-    //   sc create Name binPath= <path> DisplayName= <name> start= auto
-    // Each `key=` must be its own token, matching the CLI help.
+    // so binPath only points to the executable. Follow the
+    // same style as windows_exporter MSI docs:
+    //   sc create Name binPath="C:\path\agent.exe" DisplayName=Agent start=auto
     let output = Command::new("sc")
         .args([
             "create",
             "ProcessCpuAgent",
-            "binPath=",
-            &binary_path,
-            "DisplayName=",
-            "Process CPU Agent for Prometheus",
-            "start=",
-            "auto",
+            &format!("binPath=\"{binary_path}\""),
+            "DisplayName=Process CPU Agent for Prometheus",
+            "start=auto",
         ])
         .output()?;
 
