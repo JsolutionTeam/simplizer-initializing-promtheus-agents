@@ -2,6 +2,7 @@
 set -euo pipefail
 
 IMAGE_NAME=${IMAGE_NAME:-prometheus-agents-linux-test}
+LINUX_BUILDER_IMAGE=${LINUX_BUILDER_IMAGE:-prometheus-agents-linux-builder-rs1.92}
 CONTAINER_NAME=${CONTAINER_NAME:-prometheus-agents-linux-test}
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -19,11 +20,29 @@ cleanup() {
 
 trap cleanup EXIT
 
-log "Building project locally (release)"
-(
-  cd "$REPO_ROOT"
-  cargo build --release
-)
+log "Preparing Linux builder image: $LINUX_BUILDER_IMAGE"
+if ! docker image inspect "$LINUX_BUILDER_IMAGE" >/dev/null 2>&1; then
+  log "Linux 빌드용 Docker 이미지 생성 중: $LINUX_BUILDER_IMAGE"
+  docker build -t "$LINUX_BUILDER_IMAGE" -f- "$REPO_ROOT" <<'DOCKER'
+FROM rust:1.91-bullseye
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       pkg-config libssl-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+DOCKER
+fi
+
+log "Linux용 릴리스 바이너리 빌드 (Docker 내부)"
+docker run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -w /workspace \
+  "$LINUX_BUILDER_IMAGE" \
+  bash -c 'cargo build --release'
 
 log "Building minimal Linux test image"
 docker build -t "$IMAGE_NAME" -f- "$REPO_ROOT" <<'DOCKER'

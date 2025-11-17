@@ -18,9 +18,10 @@ pub struct ProcessCpuAgentSetup {
 }
 impl ProcessCpuAgentSetup {
     pub fn new(download_url: Option<String>) -> Self {
-        let source = download_url
-            .map(AgentSource::Remote)
-            .unwrap_or(AgentSource::Embedded);
+        let source = match download_url {
+            Some(url) if !url.trim().is_empty() => AgentSource::Remote(url),
+            _ => AgentSource::Embedded,
+        };
 
         Self {
             install_path: get_default_install_path(),
