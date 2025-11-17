@@ -158,7 +158,7 @@ WantedBy=multi-user.target"#
     )
 }
 
-/// Setup Windows service
+/// Setup Windows scheduled task (Windows Task Scheduler)
 #[cfg(windows)]
 pub fn setup_windows_service(
     install_path: &str,
@@ -166,46 +166,43 @@ pub fn setup_windows_service(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let _ = port; // port is configured via config.toml; CLI arg is not needed on Windows
     let binary_path = get_binary_path(install_path);
-    println!("Creating Windows service...");
+    println!("Creating Windows scheduled task...");
 
-    // Check if service exists
-    let check = Command::new("sc")
-        .args(["query", "ProcessCpuAgent"])
-        .output()?;
+    // Register a Task Scheduler job that runs the agent at system startup
+    // under the SYSTEM account, similar in spirit to a service but without
+    // requiring the binary to implement the Windows service protocol.
+    //
+    // Equivalent CLI:
+    //   schtasks /Create /TN "ProcessCpuAgent" /SC ONSTART /RU SYSTEM /RL HIGHEST /F \
+    //            /TR "\"C:\Program Files\prometheus\process-cpu-agent\process-cpu-agent.exe\""
+    let task_name = "ProcessCpuAgent";
+    let task_run = format!("\"{binary_path}\"");
 
-    if check.status.success() {
-        // Stop and delete existing service
-        Command::new("sc")
-            .args(["stop", "ProcessCpuAgent"])
-            .output()?;
-
-        Command::new("sc")
-            .args(["delete", "ProcessCpuAgent"])
-            .output()?;
-    }
-
-    // Create new service: rely on config.toml for port,
-    // so binPath only points to the executable. Follow the
-    // same style as windows_exporter MSI docs:
-    //   sc create Name binPath="C:\path\agent.exe" DisplayName=Agent start=auto
-    let output = Command::new("sc")
+    let output = Command::new("schtasks")
         .args([
-            "create",
-            "ProcessCpuAgent",
-            &format!("binPath=\"{binary_path}\""),
-            "DisplayName=Process CPU Agent for Prometheus",
-            "start=auto",
+            "/Create",
+            "/TN",
+            task_name,
+            "/SC",
+            "ONSTART",
+            "/RU",
+            "SYSTEM",
+            "/RL",
+            "HIGHEST",
+            "/F",
+            "/TR",
+            &task_run,
         ])
         .output()?;
 
     if output.status.success() {
-        println!("Windows service created successfully");
+        println!("Windows scheduled task registered successfully");
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         return Err(
             format!(
-                "Failed to create Windows service: {}\n{}",
+                "Failed to create Windows scheduled task: {}\n{}",
                 stderr.trim(),
                 stdout.trim()
             )

@@ -129,7 +129,7 @@ impl WindowsExporterSetup {
             println!("Windows Exporter service started successfully");
             println!("Metrics available at: http://localhost:{WINDOWS_EXPORTER_PORT}/metrics");
         } else {
-            println!("Please start the service manually: sc start windows_exporter");
+            println!("Please start the service manually: sc.exe start windows_exporter");
         }
 
         Ok(())
