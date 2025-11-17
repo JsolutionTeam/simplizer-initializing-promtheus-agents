@@ -87,15 +87,20 @@ impl WindowsExporterSetup {
 
         println!("Installing Windows Exporter...");
 
+        // Follow upstream MSI semantics: properties are passed as
+        //   ENABLED_COLLECTORS=...
+        //   LISTEN_PORT=...
+        // without extra quoting, matching README examples.
+        let collectors_arg = "ENABLED_COLLECTORS=cpu,cs,logical_disk,net,os,service,system,textfile,process,memory,thermalzone";
+
         let output = Command::new("msiexec")
             .args([
                 "/i",
                 &installer_path,
                 "/quiet",
                 "/norestart",
-                &format!("INSTALLDIR={}", self.install_path),
                 &format!("LISTEN_PORT={}", WINDOWS_EXPORTER_PORT),
-                "ENABLED_COLLECTORS=cpu,cs,logical_disk,net,os,service,system,textfile,process,memory"
+                collectors_arg,
             ])
             .output()?;
 
@@ -145,6 +150,7 @@ collectors:
     - textfile
     - process
     - memory
+    - thermalzone
     - tcp
     - iis
 
