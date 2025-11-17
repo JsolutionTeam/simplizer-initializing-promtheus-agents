@@ -163,6 +163,7 @@ pub fn setup_windows_service(
     install_path: &str,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let _ = port; // port is configured via config.toml; CLI arg is not needed on Windows
     let binary_path = get_binary_path(install_path);
     println!("Creating Windows service...");
 
@@ -182,17 +183,14 @@ pub fn setup_windows_service(
             .output()?;
     }
 
-    // Create new service
-    let bin_path_arg = format!("\"{}\" --port {}", binary_path, port);
-    let display_name_arg = "DisplayName=\"Process CPU Agent for Prometheus\"";
-
+    // Create new service: rely on config.toml for port,
+    // so binPath only points to the executable.
     let output = Command::new("sc")
         .args([
             "create",
             "ProcessCpuAgent",
-            "binPath=",
-            &bin_path_arg,
-            display_name_arg,
+            &format!("binPath= \"{}\"", binary_path),
+            "DisplayName= \"Process CPU Agent for Prometheus\"",
             "start= auto",
         ])
         .output()?;
@@ -200,8 +198,16 @@ pub fn setup_windows_service(
     if output.status.success() {
         println!("Windows service created successfully");
     } else {
-        let error = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to create Windows service: {}", error).into());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(
+            format!(
+                "Failed to create Windows service: {}\n{}",
+                stderr.trim(),
+                stdout.trim()
+            )
+            .into(),
+        );
     }
 
     Ok(())
