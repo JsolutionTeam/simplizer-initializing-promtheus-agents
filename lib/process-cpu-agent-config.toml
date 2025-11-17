@@ -1,0 +1,16 @@
+[server]
+port = 31416
+
+[process]
+cpu_total_desc = "process_cpu_percent"
+description = "CPU usage percentage of the process"
+type = "gauge"
+labels = ["pid", "process_name", "username"]
+
+[gpu]
+memory_desc = "process_gpu_memory_bytes"
+memory_description = "GPU memory usage in bytes per process"
+utilization_desc = "process_gpu_utilization_percent"
+utilization_description = "Estimated GPU utilization percentage per process"
+labels = ["pid", "gpu_name", "gpu_index"]
+

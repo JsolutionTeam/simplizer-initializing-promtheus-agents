@@ -70,8 +70,12 @@ impl NodeExporterSetup {
     }
 
     fn create_systemd_service(&self, arch: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let service_content =
-            create_systemd_service_content(&self.install_path, &self.version, arch);
+        let service_content = create_systemd_service_content(
+            &self.install_path,
+            &self.version,
+            arch,
+            NODE_EXPORTER_PORT,
+        );
         let service_path = "/etc/systemd/system/node_exporter.service";
 
         if Path::new("/etc/systemd/system").exists() {
@@ -90,7 +94,12 @@ impl NodeExporterSetup {
 }
 
 /// Create systemd service content for Node Exporter
-pub fn create_systemd_service_content(install_path: &str, version: &str, arch: &str) -> String {
+pub fn create_systemd_service_content(
+    install_path: &str,
+    version: &str,
+    arch: &str,
+    port: u16,
+) -> String {
     format!(
         r#"[Unit]
 Description=Prometheus Node Exporter
@@ -98,7 +107,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart={install_path}/node_exporter/node_exporter-{version}.linux-{arch}/node_exporter --web.listen-address=:31415
+ExecStart={install_path}/node_exporter/node_exporter-{version}.linux-{arch}/node_exporter --web.listen-address=:{port}
 Restart=always
 RestartSec=10
 
@@ -158,7 +167,8 @@ pub fn setup_node_exporter(
     }
 
     // Create systemd service
-    let service_content = create_systemd_service_content(install_path, version, arch);
+    let service_content =
+        create_systemd_service_content(install_path, version, arch, NODE_EXPORTER_PORT);
     let service_path = "/etc/systemd/system/node_exporter.service";
 
     if Path::new("/etc/systemd/system").exists() {
@@ -250,7 +260,8 @@ mod tests {
 
     #[test]
     fn test_systemd_service_content_function() {
-        let content = create_systemd_service_content("/opt/prometheus", "1.7.0", "amd64");
+        let content =
+            create_systemd_service_content("/opt/prometheus", "1.7.0", "amd64", NODE_EXPORTER_PORT);
 
         assert!(content.contains("Description=Prometheus Node Exporter"));
         assert!(content.contains("1.7.0"));
@@ -270,8 +281,12 @@ mod tests {
     #[test]
     fn test_systemd_service_content() {
         let setup = NodeExporterSetup::new();
-        let service_content =
-            create_systemd_service_content(&setup.install_path, &setup.version, "amd64");
+        let service_content = create_systemd_service_content(
+            &setup.install_path,
+            &setup.version,
+            "amd64",
+            NODE_EXPORTER_PORT,
+        );
 
         assert!(service_content.contains("Description=Prometheus Node Exporter"));
         assert!(service_content.contains(&setup.version));

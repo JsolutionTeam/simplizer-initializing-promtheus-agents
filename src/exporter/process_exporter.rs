@@ -4,6 +4,7 @@ use std::process::Command;
 const PROCESS_CPU_AGENT_PORT: u16 = 31416;
 const EMBEDDED_PROCESS_AGENT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/process_cpu_agent.bin"));
+const EMBEDDED_PROCESS_AGENT_CONFIG: &str = include_str!("../../lib/process-cpu-agent-config.toml");
 
 #[derive(Debug, Clone, PartialEq)]
 enum AgentSource {
@@ -90,10 +91,13 @@ impl ProcessCpuAgentSetup {
     }
 
     pub fn create_config_file(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let config_content = create_config_content(PROCESS_CPU_AGENT_PORT);
         let config_path = get_config_path(&self.install_path);
 
-        downloader::write_file(&config_path, config_content.as_bytes())?;
+        if let Some(parent) = std::path::Path::new(&config_path).parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        downloader::write_file(&config_path, EMBEDDED_PROCESS_AGENT_CONFIG.as_bytes())?;
         println!("Configuration file created at: {config_path}");
 
         Ok(())
@@ -121,10 +125,10 @@ pub fn get_binary_path(install_path: &str) -> String {
 /// Get config file path based on install path and OS
 pub fn get_config_path(install_path: &str) -> String {
     #[cfg(windows)]
-    return format!("{}\\config.yaml", install_path);
+    return format!("{}\\config.toml", install_path);
 
     #[cfg(not(windows))]
-    return format!("{install_path}/config.yaml");
+    return format!("{install_path}/config.toml");
 }
 
 /// Create Linux systemd service content
@@ -174,12 +178,16 @@ pub fn setup_windows_service(
     }
 
     // Create new service
+    let bin_path_arg = format!("\"{}\" --port {}", binary_path, port);
+    let display_name_arg = "DisplayName=\"Process CPU Agent for Prometheus\"";
+
     let output = Command::new("sc")
         .args([
             "create",
             "ProcessCpuAgent",
-            &format!("binPath= \"{} --port {}\"", binary_path, port),
-            "DisplayName= \"Process CPU Agent for Prometheus\"",
+            "binPath=",
+            &bin_path_arg,
+            display_name_arg,
             "start= auto",
         ])
         .output()?;
@@ -298,7 +306,7 @@ mod tests {
         let install_path = "/opt/prometheus";
         let config_path = get_config_path(install_path);
 
-        assert!(config_path.contains("config.yaml"));
+        assert!(config_path.contains("config.toml"));
     }
 
     #[test]
@@ -326,22 +334,13 @@ mod tests {
         let result = setup.create_config_file();
         assert!(result.is_ok());
 
-        let config_path = test_path.join("config.yaml");
+        let config_path = test_path.join("config.toml");
         assert!(config_path.exists());
 
         let content = fs::read_to_string(config_path).unwrap();
-        assert!(content.contains("port: 31416"));
-        assert!(content.contains("Process CPU Agent Configuration"));
-    }
-
-    #[test]
-    fn test_create_config_content() {
-        let content = create_config_content(31416);
-
-        assert!(content.contains("port: 31416"));
-        assert!(content.contains("Process CPU Agent Configuration"));
-        assert!(content.contains("interval: 15"));
-        assert!(content.contains("max_processes: 100"));
+        assert!(content.contains("[server]"));
+        assert!(content.contains("port = 31416"));
+        assert!(content.contains("[process]"));
     }
 
     #[cfg(not(windows))]
