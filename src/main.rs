@@ -90,9 +90,7 @@ fn main() {
                 }
                 OsType::Windows => {
                     println!("1. Check Windows Exporter: sc.exe query windows_exporter");
-                    println!(
-                        "2. Process CPU Agent is registered as a scheduled task:"
-                    );
+                    println!("2. Process CPU Agent is registered as a scheduled task:");
                     println!("   - Check task: schtasks /Query /TN ProcessCpuAgent");
                     println!("   - Run once now: schtasks /Run /TN ProcessCpuAgent");
                     println!("3. Check Windows Exporter metrics: http://localhost:31415/metrics");

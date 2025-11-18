@@ -1,10 +1,20 @@
 use crate::exporter::downloader;
 use std::fs;
 use std::process::Command;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 const PROCESS_CPU_AGENT_PORT: u16 = 31416;
 const EMBEDDED_PROCESS_AGENT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/process_cpu_agent.bin"));
 const EMBEDDED_PROCESS_AGENT_CONFIG: &str = include_str!("../../lib/process-cpu-agent-config.toml");
+
+#[cfg(windows)]
+const DETACHED_PROCESS: u32 = 0x00000008;
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Clone, PartialEq)]
 enum AgentSource {
@@ -117,10 +127,20 @@ impl ProcessCpuAgentSetup {
 /// Get default install path based on OS
 pub fn get_default_install_path() -> String {
     #[cfg(windows)]
-    return "C:\\Program Files\\prometheus\\process-cpu-agent".to_string();
+    {
+        // Prefer per-user install under LOCALAPPDATA to avoid Program Files write restrictions.
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            return format!("{local_app_data}\\prometheus\\process-cpu-agent");
+        }
+
+        // Fallback to a machine-wide writable location if LOCALAPPDATA is unavailable.
+        "C:\\ProgramData\\prometheus\\process-cpu-agent".to_string()
+    }
 
     #[cfg(not(windows))]
-    return "/opt/prometheus/process-cpu-agent".to_string();
+    {
+        "/opt/prometheus/process-cpu-agent".to_string()
+    }
 }
 
 /// Get binary path based on install path and OS
@@ -172,66 +192,45 @@ pub fn setup_windows_service(
     let binary_path = get_binary_path(install_path);
     println!("Creating Windows scheduled task...");
 
-    // Register a Task Scheduler job that runs the agent at system startup
-    // under the SYSTEM account, similar in spirit to a service but without
-    // requiring the binary to implement the Windows service protocol.
+    // Register a Task Scheduler job that runs the agent at user logon
+    // under the current user account.
     let task_name = "ProcessCpuAgent";
-    // Use cmd.exe so we can change to the install directory first. Many agents
-    // resolve config files relative to their working directory.
-    //
-    // Equivalent CLI:
-    //   schtasks /Create /TN "ProcessCpuAgent" /SC ONSTART /RU SYSTEM /RL HIGHEST /F ^
-    //            /TR "cmd.exe /C \"cd /d \"C:\Program Files\prometheus\process-cpu-agent\" && \"C:\Program Files\prometheus\process-cpu-agent\process-cpu-agent.exe\"\""
-    let task_run = format!(
-        "cmd.exe /C \"cd /d \\\"{}\\\" && \\\"{}\\\"\"",
-        install_path, binary_path
-    );
+
+    let task_run = format!("cmd.exe /C cd /d {} && {}", install_path, binary_path);
 
     let output = Command::new("schtasks")
         .args([
-            "/Create",
-            "/TN",
-            task_name,
-            "/SC",
-            "ONSTART",
-            "/RU",
-            "SYSTEM",
-            "/RL",
-            "HIGHEST",
-            "/F",
-            "/TR",
-            &task_run,
+            "/Create", "/TN", task_name, "/SC", "ONLOGON", "/F", "/TR", &task_run,
         ])
         .output()?;
 
     if output.status.success() {
         println!("Windows scheduled task registered successfully");
-        // 설치 직후 한 번 바로 실행 시도
-        let run_output = Command::new("schtasks")
-            .args(["/Run", "/TN", task_name])
-            .output()?;
-        if run_output.status.success() {
-            println!("Windows scheduled task triggered successfully");
-        } else {
-            let stderr = String::from_utf8_lossy(&run_output.stderr);
-            let stdout = String::from_utf8_lossy(&run_output.stdout);
-            println!(
-                "Warning: Failed to run ProcessCpuAgent task immediately: {}\n{}",
-                stderr.trim(),
-                stdout.trim()
-            );
+
+        // 설치 직후 한 번 바로 실행 시도: 작업 스케줄러 정의는 그대로 두고,
+        // 바이너리를 현재 콘솔/프로세스와 완전히 분리된(detached) 프로세스로 실행한다.
+        let spawn_result = Command::new(&binary_path)
+            .current_dir(install_path)
+            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+            .spawn();
+
+        match spawn_result {
+            Ok(_) => {
+                println!("ProcessCpuAgent started immediately after installation");
+            }
+            Err(e) => {
+                println!("Warning: Failed to start ProcessCpuAgent immediately: {e}");
+            }
         }
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        return Err(
-            format!(
-                "Failed to create Windows scheduled task: {}\n{}",
-                stderr.trim(),
-                stdout.trim()
-            )
-            .into(),
-        );
+        return Err(format!(
+            "Failed to create Windows scheduled task: {}\n{}",
+            stderr.trim(),
+            stdout.trim()
+        )
+        .into());
     }
 
     Ok(())
